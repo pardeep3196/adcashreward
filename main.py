@@ -18,6 +18,7 @@ EXTRA_EARNING_URL = "https://t.me/EagleEyeSignals_bot/AdCash"
 # ==================== INITIALIZATION ====================
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
+RAILWAY_URL = None # Shuru mein URL ko khali rakhein
 
 # ==================== DATA MANAGEMENT (Same as before) ====================
 def load_users():
@@ -50,19 +51,16 @@ def update_user_data(user_id, data):
 def main_menu(user_id):
     keyboard = InlineKeyboardMarkup(row_width=2)
     
-    # === YAHAN URL KO THEEK KIYA GAYA HAI ===
-    # Railway ka URL environment variable se lene ki koshish karein
-    railway_url = os.environ.get('RAILWAY_STATIC_URL')
-    
-    # Agar URL nahin milta (local testing ya deployment ke shuru mein), toh ek placeholder istemal karein
-    if not railway_url:
-        # Yeh ek dummy URL hai, isko baad mein Railway apne aap theek kar dega
-        # Hum isko khali nahin chhod sakte
-        ad_viewer_url = "https://google.com" # Temporary URL
-    else:
-        ad_viewer_url = f"https://{railway_url}/ad_viewer?user_id={user_id}"
+    # === YAHAN URL KO AUR BEHTAR KIYA GAYA HAI ===
+    # Agar Railway ka URL abhi tak set nahin hua, toh user ko wait karne ko kahein
+    if not RAILWAY_URL:
+        # Ek dummy button jo kuch nahin karta, sirf message deta hai
+        keyboard.row(InlineKeyboardButton("⏳ Bot is starting, please wait...", callback_data="wait"))
+        return keyboard
     # =========================================
 
+    ad_viewer_url = f"https://{RAILWAY_URL}/ad_viewer?user_id={user_id}"
+    
     btn1 = InlineKeyboardButton("Claim AdCash 1", web_app=WebAppInfo(url=ad_viewer_url))
     btn2 = InlineKeyboardButton("Claim AdCash 2", web_app=WebAppInfo(url=ad_viewer_url))
     btn3 = InlineKeyboardButton("Claim AdCash 3", web_app=WebAppInfo(url=ad_viewer_url))
@@ -74,11 +72,13 @@ def main_menu(user_id):
     keyboard.row(InlineKeyboardButton("🤑 Extra Earning", web_app=WebAppInfo(url=EXTRA_EARNING_URL)))
     return keyboard
 
-# ==================== TELEGRAM BOT HANDLERS (Same as before) ====================
+# ==================== TELEGRAM BOT HANDLERS ====================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = message.from_user.id
     get_user_data(user_id)
+    
+    # Referral logic...
     try:
         ref_id = int(message.text.split()[1])
         if ref_id != user_id:
@@ -91,15 +91,20 @@ def send_welcome(message):
                 bot.send_message(ref_id, "🎉 A new user has joined using your referral link!")
     except (IndexError, ValueError):
         pass
+
     welcome_text = "👋 Welcome! Claim rewards by clicking the buttons below."
     bot.send_message(message.chat.id, welcome_text, reply_markup=main_menu(user_id))
 
-# (Baaki saara code bilkul waisa hi hai jaisa pehle tha)
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
     user_id = call.from_user.id
     user = get_user_data(user_id)
-    if call.data == "main_menu":
+    
+    if call.data == "wait":
+        bot.answer_callback_query(call.id, "The bot is initializing. Please try again in a few seconds.", show_alert=True)
+    
+    # (Baaki saara callback code bilkul waisa hi hai)
+    elif call.data == "main_menu":
         bot.edit_message_text("Main Menu:", call.message.chat.id, call.message.message_id, reply_markup=main_menu(user_id))
     elif call.data == "check_balance":
         bot.answer_callback_query(call.id, f"Your Balance: {user['balance']:.4f} USDT", show_alert=True)
@@ -133,6 +138,7 @@ def process_binance_uid(message):
     else:
         bot.send_message(message.chat.id, "❌ Invalid UID. Please send numbers only.", reply_markup=main_menu(user_id))
 
+# ==================== FLASK WEB SERVER & API (Same as before) ====================
 @app.route('/ad_viewer')
 def ad_viewer():
     user_id = request.args.get('user_id')
@@ -152,7 +158,13 @@ def claim_reward():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# ==================== MAIN EXECUTION ====================
 def run_flask():
+    global RAILWAY_URL
+    # Thoda wait karein taake Railway URL set kar de
+    time.sleep(5) 
+    RAILWAY_URL = os.environ.get('RAILWAY_STATIC_URL')
+    print(f"Flask server started. Railway URL is: {RAILWAY_URL}")
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
 
