@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claiming Reward...</title>
+    
+    <!-- YEH AAPKA MONETAG KA AD CODE HAI -->
+    <script src='//libtl.com/sdk.js' data-zone='9866529' data-sdk='show_9866529' async></script>
+    
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            padding: 20px;
+        }
+        h1 {
+            font-size: 1.5em;
+        }
+        p {
+            font-size: 1em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Please wait...</h1>
+        <p>Your reward is being processed.</p>
+    </div>
+
+    <script>
+        // Yeh function user ki ID URL se nikalta hai
+        function getUserId() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('user_id');
+        }
+
+        // Yeh function backend API ko call karke reward claim karta hai
+        async function claimReward() {
+            const userId = getUserId();
+            if (!userId) {
+                console.error("User ID not found in URL.");
+                document.querySelector('h1').innerText = 'Error!';
+                document.querySelector('p').innerText = 'Could not find user ID. Please try again from Telegram.';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/claim-reward', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ user_id: userId }),
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    document.querySelector('h1').innerText = 'Success!';
+                    document.querySelector('p').innerText = `Reward claimed! Your new balance is $${data.new_balance.toFixed(4)}. You can close this window now.`;
+                } else {
+                    document.querySelector('h1').innerText = 'Failed!';
+                    document.querySelector('p').innerText = 'Could not claim reward. Please try again.';
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                document.querySelector('h1').innerText = 'Connection Error!';
+                document.querySelector('p').innerText = 'Could not connect to the server.';
+            }
+        }
+
+        // Jab Monetag ka ad script load ho jaye, toh reward claim karo
+        // Hum 1.5 second ka delay de rahe hain taake ad ko load hone ka time mil jaye
+        window.onload = function() {
+            setTimeout(claimReward, 1500);
+        };
+    </script>
+
+</body>
+</html>
